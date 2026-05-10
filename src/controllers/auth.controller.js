@@ -3,8 +3,8 @@ const bcrypt  = require('bcryptjs');
 const jwt     = require('jsonwebtoken');
 
 exports.register = async (req, res) => {
-  const { full_name, email, password, role, department } = req.body;
-  if (!full_name || !email || !password || !department) {
+  const { full_name, email, password, role, department, batch } = req.body;
+  if (!full_name || !email || !password || !department || !batch) {
     return res.status(400).json({ message: 'All fields required' });
   }
   try {
@@ -13,9 +13,9 @@ exports.register = async (req, res) => {
 
     const hash = await bcrypt.hash(password, 10);
     const result = await pool.query(
-      `INSERT INTO users (full_name, email, password_hash, role, department)
-       VALUES ($1,$2,$3,$4,$5) RETURNING id, full_name, email, role, department`,
-      [full_name, email, hash, role || 'student', department]
+      `INSERT INTO users (full_name, email, password_hash, role, department, batch)
+       VALUES ($1,$2,$3,$4,$5) RETURNING id, full_name, email, role, department, batch`,
+      [full_name, email, hash, role || 'student', department, batch]
     );
     res.status(201).json({ message: 'Registered successfully', user: result.rows[0] });
   } catch (err) {
