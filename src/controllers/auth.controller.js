@@ -14,7 +14,7 @@ exports.register = async (req, res) => {
     const hash = await bcrypt.hash(password, 10);
     const result = await pool.query(
       `INSERT INTO users (full_name, email, password_hash, role, department, batch)
-       VALUES ($1,$2,$3,$4,$5) RETURNING id, full_name, email, role, department, batch`,
+       VALUES ($1,$2,$3,$4,$5,$6) RETURNING id, full_name, email, role, department, batch`,
       [full_name, email, hash, role || 'student', department, batch]
     );
     res.status(201).json({ message: 'Registered successfully', user: result.rows[0] });
