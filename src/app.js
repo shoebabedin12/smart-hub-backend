@@ -32,6 +32,14 @@ app.use('/api/profile', profileRoutes);
 app.use('/api/routine',     routineRoutes);
 app.use('/api/assignments', assignmentRoutes);
 app.use('/api/users', userRoutes);
+app.use((err, req, res, next) => {
+  console.error("GLOBAL ERROR:", err);
+
+  res.status(500).json({
+    message: err.message,
+    error: err,
+  });
+});
 
 // test route
 app.get('/', (req, res) => {

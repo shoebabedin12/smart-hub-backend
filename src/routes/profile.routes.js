@@ -1,10 +1,10 @@
-const router  = require('express').Router();
-const ctrl    = require('../controllers/profile.controller');
-const auth    = require('../middleware/auth.middleware');
-const multer  = require('multer');
+const router = require('express').Router();
+const ctrl = require('../controllers/profile.controller');
+const auth = require('../middleware/auth.middleware');
+
+const multer = require('multer');
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
 const cloudinary = require('../config/cloudinary');
-const path    = require('path');
 
 const storage = new CloudinaryStorage({
   cloudinary,
@@ -16,7 +16,8 @@ const storage = new CloudinaryStorage({
 
 const upload = multer({ storage });
 
-router.get('/',  auth, ctrl.getProfile);
-router.put('/',  auth, upload.single('photo'), ctrl.updateProfile);
+// routes
+router.get('/', auth, ctrl.getProfile);
+router.put('/', auth, upload.single('photo'), ctrl.updateProfile);
 
 module.exports = router;

@@ -1,12 +1,12 @@
 const pool = require("../db/pool");
-const path = require("path");
 
+// GET PROFILE
 exports.getProfile = async (req, res) => {
   try {
     const [rows] = await pool.query(
       `SELECT id, full_name, email, role, department, batch, profile_photo, created_at
        FROM users WHERE id = ?`,
-      [req.user.id],
+      [req.user.id]
     );
 
     if (!rows.length) {
@@ -15,16 +15,19 @@ exports.getProfile = async (req, res) => {
 
     res.json(rows[0]);
   } catch (err) {
+    console.error("GET PROFILE ERROR:", err);
     res.status(500).json({ message: err.message });
   }
 };
 
+// UPDATE PROFILE
 exports.updateProfile = async (req, res) => {
-  const { full_name, department, batch } = req.body;
-
-  const photoPath = req.file?.path || null;
-
   try {
+    const { full_name, department, batch } = req.body;
+
+    // Cloudinary URL (IMPORTANT FIX)
+    const photoUrl = req.file?.path || null;
+
     await pool.query(
       `UPDATE users SET
         full_name = COALESCE(?, full_name),
@@ -32,7 +35,7 @@ exports.updateProfile = async (req, res) => {
         batch = COALESCE(?, batch),
         profile_photo = COALESCE(?, profile_photo)
        WHERE id = ?`,
-      [full_name || null, department || null, batch || null, photoPath, req.user.id]
+      [full_name || null, department || null, batch || null, photoUrl, req.user.id]
     );
 
     const [rows] = await pool.query(
@@ -42,8 +45,8 @@ exports.updateProfile = async (req, res) => {
     );
 
     res.json(rows[0]);
-
   } catch (err) {
+    console.error("UPDATE PROFILE ERROR:", err);
     res.status(500).json({ message: err.message });
   }
 };
