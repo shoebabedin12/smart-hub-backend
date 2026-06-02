@@ -14,7 +14,7 @@ exports.upload = async (req, res) => {
   try {
     const result = await pool.query(
       `INSERT INTO resources (uploaded_by, title, file_path, file_type, subject, semester, department)
-       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+       VALUES (?,?,?,?,?,?,?) RETURNING *`,
       [req.user.id, title, filePath, ext, subject, semester || null, department]
     );
     const resource = result.rows[0];

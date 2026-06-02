@@ -6,7 +6,7 @@ exports.getMyResults = async (req, res) => {
       const result = await pool.query(
         `SELECT r.*, u.full_name as student_name 
          FROM results r JOIN users u ON r.student_id = u.id
-         WHERE r.student_id=$1 ORDER BY r.semester, r.subject`,
+         WHERE r.student_id=? ORDER BY r.semester, r.subject`,
         [req.user.id]
       );
       return res.json({ students: [], results: result.rows });
@@ -19,7 +19,7 @@ exports.getMyResults = async (req, res) => {
       const result = await pool.query(
         `SELECT r.*, u.full_name as student_name 
          FROM results r JOIN users u ON r.student_id = u.id
-         WHERE r.student_id=$1 ORDER BY r.semester, r.subject`,
+         WHERE r.student_id=? ORDER BY r.semester, r.subject`,
         [student_id]
       );
       return res.json({ students: [], results: result.rows });
@@ -29,7 +29,7 @@ exports.getMyResults = async (req, res) => {
     if (department && batch) {
       const students = await pool.query(
         `SELECT id, full_name, department, batch, email FROM users 
-         WHERE role='student' AND department=$1 AND batch=$2 ORDER BY full_name`,
+         WHERE role='student' AND department=? AND batch=? ORDER BY full_name`,
         [department, batch]
       );
       return res.json({ students: students.rows, results: [], type: 'students' });
@@ -39,7 +39,7 @@ exports.getMyResults = async (req, res) => {
     if (department) {
       const batches = await pool.query(
         `SELECT DISTINCT batch FROM users 
-         WHERE role='student' AND department=$1 AND batch IS NOT NULL ORDER BY batch`,
+         WHERE role='student' AND department=? AND batch IS NOT NULL ORDER BY batch`,
         [department]
       );
       return res.json({ batches: batches.rows.map(b => b.batch), results: [], type: 'batches' });

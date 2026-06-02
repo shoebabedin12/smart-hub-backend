@@ -9,7 +9,7 @@ router.get('/', auth, async (req, res) => {
     const params = [];
     if (role) { 
       params.push(role); 
-      query = `SELECT id, full_name, email, role, department FROM users WHERE role=$1`;
+      query = `SELECT id, full_name, email, role, department FROM users WHERE role=?`;
     }
     query += ' ORDER BY full_name';
     const result = await pool.query(query, params);

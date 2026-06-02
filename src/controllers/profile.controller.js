@@ -1,14 +1,19 @@
-const pool = require('../db/pool');
-const path = require('path');
+const pool = require("../db/pool");
+const path = require("path");
 
 exports.getProfile = async (req, res) => {
   try {
-    const result = await pool.query(
+    const [rows] = await pool.query(
       `SELECT id, full_name, email, role, department, batch, profile_photo, created_at
-       FROM users WHERE id=$1`,
-      [req.user.id]
+       FROM users WHERE id = ?`,
+      [req.user.id],
     );
-    res.json(result.rows[0]);
+
+    if (!rows.length) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    res.json(rows[0]);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -16,22 +21,30 @@ exports.getProfile = async (req, res) => {
 
 exports.updateProfile = async (req, res) => {
   const { full_name, department, batch } = req.body;
+
   const photoPath = req.file
     ? req.file.path.replace(/\\/g, '/')
     : null;
 
   try {
-    const result = await pool.query(
+    await pool.query(
       `UPDATE users SET
-        full_name      = COALESCE($1, full_name),
-        department     = COALESCE($2, department),
-        batch          = COALESCE($3, batch),
-        profile_photo  = COALESCE($4, profile_photo)
-       WHERE id=$5
-       RETURNING id, full_name, email, role, department, batch, profile_photo`,
+        full_name = COALESCE(?, full_name),
+        department = COALESCE(?, department),
+        batch = COALESCE(?, batch),
+        profile_photo = COALESCE(?, profile_photo)
+       WHERE id = ?`,
       [full_name || null, department || null, batch || null, photoPath, req.user.id]
     );
-    res.json(result.rows[0]);
+
+    const [rows] = await pool.query(
+      `SELECT id, full_name, email, role, department, batch, profile_photo
+       FROM users WHERE id = ?`,
+      [req.user.id]
+    );
+
+    res.json(rows[0]);
+
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

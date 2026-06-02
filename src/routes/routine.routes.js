@@ -9,7 +9,7 @@ router.get('/', auth, async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT * FROM class_routine
-       WHERE department=$1 AND batch=$2
+       WHERE department=? AND batch=?
        ORDER BY
          CASE day_of_week
            WHEN 'Sunday'    THEN 1
@@ -32,7 +32,7 @@ router.post('/', auth, role('admin', 'faculty'), async (req, res) => {
   try {
     const result = await pool.query(
       `INSERT INTO class_routine (department, batch, day_of_week, start_time, end_time, subject, subject_code, teacher, room)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *`,
       [department, batch, day_of_week, start_time, end_time, subject, subject_code, teacher, room]
     );
     res.status(201).json(result.rows[0]);
@@ -44,7 +44,7 @@ router.post('/', auth, role('admin', 'faculty'), async (req, res) => {
 // Delete class (admin only)
 router.delete('/:id', auth, role('admin'), async (req, res) => {
   try {
-    await pool.query('DELETE FROM class_routine WHERE id=$1', [req.params.id]);
+    await pool.query('DELETE FROM class_routine WHERE id=?', [req.params.id]);
     res.json({ message: 'Deleted' });
   } catch (err) {
     res.status(500).json({ message: err.message });

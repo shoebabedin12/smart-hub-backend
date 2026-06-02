@@ -8,14 +8,14 @@ exports.ask = async (req, res) => {
   try {
     // Session create করো
     const s = await pool.query(
-      'INSERT INTO chat_sessions (user_id) VALUES ($1) RETURNING id',
+      'INSERT INTO chat_sessions (user_id) VALUES (?) RETURNING id',
       [req.user.id]
     );
     const sid = s.rows[0].id;
 
     // Student message save
     await pool.query(
-      'INSERT INTO chat_messages (session_id, sender, message) VALUES ($1,$2,$3)',
+      'INSERT INTO chat_messages (session_id, sender, message) VALUES (?,?,?)',
       [sid, 'student', message]
     );
 
@@ -32,7 +32,7 @@ exports.ask = async (req, res) => {
 
     // Bot message save
     await pool.query(
-      'INSERT INTO chat_messages (session_id, sender, message, source_resource_id) VALUES ($1,$2,$3,$4)',
+      'INSERT INTO chat_messages (session_id, sender, message, source_resource_id) VALUES (?,?,?,?)',
       [sid, 'bot', botReply, sourceResId]
     );
 
@@ -47,7 +47,7 @@ exports.history = async (req, res) => {
   const { session_id } = req.params;
   try {
     const result = await pool.query(
-      'SELECT * FROM chat_messages WHERE session_id=$1 ORDER BY sent_at ASC',
+      'SELECT * FROM chat_messages WHERE session_id=? ORDER BY sent_at ASC',
       [session_id]
     );
     res.json(result.rows);
@@ -59,7 +59,7 @@ exports.history = async (req, res) => {
 exports.sessions = async (req, res) => {
   try {
     const result = await pool.query(
-      'SELECT * FROM chat_sessions WHERE user_id=$1 ORDER BY started_at DESC',
+      'SELECT * FROM chat_sessions WHERE user_id=? ORDER BY started_at DESC',
       [req.user.id]
     );
     res.json(result.rows);
