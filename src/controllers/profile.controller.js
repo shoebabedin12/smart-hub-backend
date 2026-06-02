@@ -22,9 +22,7 @@ exports.getProfile = async (req, res) => {
 exports.updateProfile = async (req, res) => {
   const { full_name, department, batch } = req.body;
 
-  const photoPath = req.file
-    ? req.file.path.replace(/\\/g, '/')
-    : null;
+  const photoPath = req.file?.path || null;
 
   try {
     await pool.query(
