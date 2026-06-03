@@ -4,10 +4,13 @@ const pool = require("../db/pool");
 exports.getProfile = async (req, res) => {
   try {
     const [rows] = await pool.query(
-      `SELECT id, full_name, email, role, department, batch, profile_photo, created_at
-       FROM users WHERE id = ?`,
-      [req.user.id]
-    );
+  `SELECT u.id, u.full_name, u.email, u.role, u.batch, u.profile_photo, 
+          u.department_id, d.name as department_name
+   FROM users u
+   LEFT JOIN departments d ON u.department_id = d.id
+   WHERE u.id = ?`,
+  [req.user.id]
+);
 
     if (!rows.length) {
       return res.status(404).json({ message: "User not found" });
@@ -20,10 +23,9 @@ exports.getProfile = async (req, res) => {
   }
 };
 
-// UPDATE PROFILE
 exports.updateProfile = async (req, res) => {
   try {
-    const { full_name, department, batch } = req.body;
+    const { full_name, department_id, batch } = req.body;
 
     // Cloudinary URL (IMPORTANT FIX)
     const photoUrl = req.file?.path || null;
@@ -31,16 +33,18 @@ exports.updateProfile = async (req, res) => {
     await pool.query(
       `UPDATE users SET
         full_name = COALESCE(?, full_name),
-        department = COALESCE(?, department),
+        department_id = COALESCE(?, department_id),
         batch = COALESCE(?, batch),
         profile_photo = COALESCE(?, profile_photo)
        WHERE id = ?`,
-      [full_name || null, department || null, batch || null, photoUrl, req.user.id]
+      [full_name || null, department_id || null, batch || null, photoUrl, req.user.id]
     );
 
     const [rows] = await pool.query(
-      `SELECT id, full_name, email, role, department, batch, profile_photo
-       FROM users WHERE id = ?`,
+      `SELECT u.id, u.full_name, u.email, u.role, u.batch, u.department_id, d.name as department_name, u.profile_photo
+       FROM users u
+       LEFT JOIN departments d ON u.department_id = d.id
+       WHERE u.id = ?`,
       [req.user.id]
     );
 

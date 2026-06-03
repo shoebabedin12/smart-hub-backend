@@ -16,58 +16,83 @@ const summarize = async (body) => {
 };
 
 exports.getAll = async (req, res) => {
-  const { department, category } = req.query;
-  let query = `SELECT n.*, u.full_name as author_name FROM notices n
-               JOIN users u ON n.author_id = u.id WHERE 1=1`;
+  const { department_id, category } = req.query;
+  
+  // d.name সহ জয়েন করা হলো যাতে ভবিষ্যতে ডিপার্টমেন্টের নামও ফ্রন্টএন্ডে দেখাতে পারেন
+  let query = `SELECT n.*, u.full_name as author_name, d.name as department_name 
+               FROM notices n
+               JOIN users u ON n.author_id = u.id 
+               LEFT JOIN departments d ON n.department_id = d.id
+               WHERE 1=1`;
   const params = [];
-  if (department && department !== 'all') {
-    params.push(department);
-    query += ` AND (n.department=$${params.length} OR n.department='all')`;
+
+  // 🛠️ লজিক ফিক্স: আইডি যদি 'all' না হয় এবং ০ এর চেয়ে বড় হয়, কেবল তখনই ফিল্টার হবে
+  if (department_id && department_id !== 'all' && String(department_id) !== '0') {
+    query += ` AND (n.department_id = ? OR n.department_id IS NULL)`;
+    params.push(Number(department_id));
   }
-  if (category) {
+  
+  // ক্যাটেগরি ফিল্টার
+  if (category && category !== 'all') {
+    query += ` AND LOWER(n.category) = LOWER(?)`;
     params.push(category);
-    query += ` AND n.category=$${params.length}`;
   }
+  
   query += ' ORDER BY n.is_pinned DESC, n.created_at DESC';
 
   try {
-    const result = await pool.query(query, params);
-    res.json(result.rows);
+    const [rows] = await pool.query(query, params);
+    res.json(rows);
   } catch (err) {
+    console.error("Database Query Error:", err);
     res.status(500).json({ message: err.message });
   }
 };
 
 exports.create = async (req, res) => {
-  const { title, body, category, department, is_pinned } = req.body;
+  const { title, body, category, department_id, is_pinned } = req.body;
   if (!title || !body || !category) {
     return res.status(400).json({ message: 'title, body, category required' });
   }
   try {
     const ai_summary = await summarize(body);
-    const result = await pool.query(
-      `INSERT INTO notices (author_id, title, body, ai_summary, category, department, is_pinned)
-       VALUES (?,?,?,?,?,?,?) RETURNING *`,
-      [req.user.id, title, body, ai_summary, category, department || 'all', is_pinned || false]
+    
+    // 🛠️ department_id যদি 'all' বা খালি হয়, তবে ডাটাবেজে NULL সেভ হবে (সবার জন্য নোটিশ)
+    const deptId = (!department_id || department_id === 'all') ? null : Number(department_id);
+
+    const [result] = await pool.query(
+      `INSERT INTO notices (author_id, title, body, ai_summary, category, department_id, is_pinned)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [req.user.id, title, body, ai_summary, category, deptId, is_pinned ? 1 : 0]
     );
-    res.status(201).json(result.rows[0]);
+
+    const [newNotice] = await pool.query(
+      'SELECT n.*, u.full_name as author_name FROM notices n JOIN users u ON n.author_id = u.id WHERE n.id = ?', 
+      [result.insertId]
+    );
+    res.status(201).json(newNotice);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 };
+
 
 exports.update = async (req, res) => {
   const { id } = req.params;
   const { title, body, category, department, is_pinned } = req.body;
   try {
     const ai_summary = body ? await summarize(body) : undefined;
-    const result = await pool.query(
+    
+    await pool.query(
       `UPDATE notices SET title=?, body=?, category=?, department=?, is_pinned=?,
-       ai_summary=COALESCE(?, ai_summary) WHERE id=? AND author_id=? RETURNING *`,
-      [title, body, category, department, is_pinned, ai_summary, id, req.user.id]
+       ai_summary=COALESCE(?, ai_summary) WHERE id=? AND author_id=?`,
+      [title, body, category, department, is_pinned ? 1 : 0, ai_summary, id, req.user.id]
     );
-    if (!result.rows.length) return res.status(404).json({ message: 'Notice not found' });
-    res.json(result.rows[0]);
+
+    const [updatedNotice] = await pool.query('SELECT n.*, u.full_name as author_name FROM notices n JOIN users u ON n.author_id = u.id WHERE n.id = ?', [id]);
+    if (!updatedNotice.length) return res.status(404).json({ message: 'Notice not found' });
+    
+    res.json(updatedNotice);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -79,6 +104,27 @@ exports.remove = async (req, res) => {
     await pool.query('DELETE FROM notices WHERE id=? AND author_id=?', [id, req.user.id]);
     res.json({ message: 'Deleted' });
   } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+exports.getCategories = async (req, res) => {
+  try {
+    const [rows] = await pool.query('SELECT DISTINCT category FROM notices WHERE category IS NOT NULL');
+    const categories = rows.map(r => r.category);
+    res.json(categories);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+exports.getDepartments = async (req, res) => {
+  try {
+    // সরাসরি departments টেবিল থেকে id এবং name তুলে আনা হচ্ছে
+    const [rows] = await pool.query('SELECT id, name FROM departments ORDER BY name ASC');
+    res.json(rows); // এটি [{id: 1, name: 'CSE'}, {id: 2, name: 'EEE'}] এমন ডাটা রিটার্ন করবে
+  } catch (err) {
+    console.error("getDepartments Error:", err);
     res.status(500).json({ message: err.message });
   }
 };

@@ -12,6 +12,7 @@ const profileRoutes = require('./routes/profile.routes');
 const routineRoutes    = require('./routes/routine.routes');
 const assignmentRoutes = require('./routes/assignment.routes');
 const userRoutes = require('./routes/user.routes');
+const batchesRoutes = require('./routes/batches.routes');
 
 const app = express();
 
@@ -32,6 +33,8 @@ app.use('/api/profile', profileRoutes);
 app.use('/api/routine',     routineRoutes);
 app.use('/api/assignments', assignmentRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/batches', batchesRoutes);
+
 app.use((err, req, res, next) => {
   console.error("GLOBAL ERROR:", err);
 
