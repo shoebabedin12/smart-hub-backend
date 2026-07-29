@@ -1,33 +1,35 @@
-const router = require('express').Router();
-const pool   = require('../db/pool');
+const router = require("express").Router();
+const pool = require("../db/pool");
 
-router.get('/', async (req, res) => {
+router.get("/", async (req, res) => {
   try {
-    const [rows] = await pool.query('SELECT name FROM departments ORDER BY name ASC');
-    
-    const deptList = rows.map(r => r.name);
-    
-    res.json(deptList);
+    const [rows] = await pool.query(`
+      SELECT id, name
+      FROM departments
+      ORDER BY name ASC
+    `);
+
+    res.json(rows);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 });
 
-router.post('/add', async (req, res) => {
+router.post("/add", async (req, res) => {
   const { name } = req.body;
   try {
-    await pool.query('INSERT INTO departments (name) VALUES (?)', [name]);
-    res.status(201).json({ message: 'Department added successfully' });
+    await pool.query("INSERT INTO departments (name) VALUES (?)", [name]);
+    res.status(201).json({ message: "Department added successfully" });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 });
 
-router.delete('/delete', async (req, res) => {
+router.delete("/delete", async (req, res) => {
   const { name } = req.body;
   try {
-    await pool.query('DELETE FROM departments WHERE name = ?', [name]);
-    res.json({ message: 'Department removed successfully' });
+    await pool.query("DELETE FROM departments WHERE name = ?", [name]);
+    res.json({ message: "Department removed successfully" });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
