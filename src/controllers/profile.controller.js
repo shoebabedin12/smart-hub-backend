@@ -4,13 +4,13 @@ const pool = require("../db/pool");
 exports.getProfile = async (req, res) => {
   try {
     const [rows] = await pool.query(
-  `SELECT u.id, u.full_name, u.email, u.role, u.batch, u.profile_photo, 
-          u.department_id, d.name as department_name
-   FROM users u
-   LEFT JOIN departments d ON u.department_id = d.id
-   WHERE u.id = ?`,
-  [req.user.id]
-);
+      `SELECT u.id, u.full_name, u.email, u.role, u.batch, u.photo_url, 
+              u.department_id, d.name as department_name
+       FROM users u
+       LEFT JOIN departments d ON u.department_id = d.id
+       WHERE u.id = ?`,
+      [req.user.id],
+    );
 
     if (!rows.length) {
       return res.status(404).json({ message: "User not found" });
@@ -23,29 +23,36 @@ exports.getProfile = async (req, res) => {
   }
 };
 
+// UPDATE PROFILE
 exports.updateProfile = async (req, res) => {
   try {
     const { full_name, department_id, batch } = req.body;
 
-    // Cloudinary URL (IMPORTANT FIX)
+    // Cloudinary URL
     const photoUrl = req.file?.path || null;
+
+    // 🔴 department_id ফাকা স্ট্রিং ("") পাঠালে সেটাকে null করা যাতে COALESCE কাজ করতে পারে
+    const deptId =
+      department_id && department_id !== "undefined"
+        ? Number(department_id)
+        : null;
 
     await pool.query(
       `UPDATE users SET
         full_name = COALESCE(?, full_name),
         department_id = COALESCE(?, department_id),
         batch = COALESCE(?, batch),
-        profile_photo = COALESCE(?, profile_photo)
+        photo_url = COALESCE(?, photo_url)
        WHERE id = ?`,
-      [full_name || null, department_id || null, batch || null, photoUrl, req.user.id]
+      [full_name || null, deptId, batch || null, photoUrl, req.user.id],
     );
 
     const [rows] = await pool.query(
-      `SELECT u.id, u.full_name, u.email, u.role, u.batch, u.department_id, d.name as department_name, u.profile_photo
+      `SELECT u.id, u.full_name, u.email, u.role, u.batch, u.department_id, d.name as department_name, u.photo_url
        FROM users u
        LEFT JOIN departments d ON u.department_id = d.id
        WHERE u.id = ?`,
-      [req.user.id]
+      [req.user.id],
     );
 
     res.json(rows[0]);

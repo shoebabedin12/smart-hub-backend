@@ -2,18 +2,9 @@ const pool = require('../db/pool');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 
-
+// REGISTER
 exports.register = async (req, res) => {
-
-  const {
-    full_name,
-    email,
-    password,
-    role,
-    department_id,
-    batch
-  } = req.body;
-
+  const { full_name, email, password, role, department_id, batch } = req.body;
 
   if (!full_name || !email || !password || !department_id || !batch) {
     return res.status(400).json({
@@ -21,14 +12,11 @@ exports.register = async (req, res) => {
     });
   }
 
-
   try {
-
     const [exists] = await pool.query(
       'SELECT id FROM users WHERE email = ?',
       [email]
     );
-
 
     if (exists.length > 0) {
       return res.status(400).json({
@@ -36,13 +24,12 @@ exports.register = async (req, res) => {
       });
     }
 
-
     const hash = await bcrypt.hash(password, 10);
 
-
+    // 🔴 FIX 1: password_hash এর জায়গায় password ব্যবহার করা হয়েছে
     await pool.query(
       `INSERT INTO users 
-      (full_name, email, password_hash, role, department_id, batch)
+      (full_name, email, password, role, department_id, batch)
       VALUES (?, ?, ?, ?, ?, ?)`,
       [
         full_name,
@@ -54,7 +41,6 @@ exports.register = async (req, res) => {
       ]
     );
 
-
     const [rows] = await pool.query(
       `SELECT 
         u.id,
@@ -65,39 +51,26 @@ exports.register = async (req, res) => {
         d.name AS department_name,
         u.batch
        FROM users u
-       LEFT JOIN departments d 
-       ON u.department_id = d.id
+       LEFT JOIN departments d ON u.department_id = d.id
        WHERE u.email = ?`,
       [email]
     );
-
 
     res.status(201).json({
       message: 'Registered successfully',
       user: rows[0]
     });
 
-
   } catch (err) {
-
     res.status(500).json({
       message: err.message
     });
-
   }
 };
 
-
-
-
-
+// LOGIN
 exports.login = async (req, res) => {
-
-  const {
-    email,
-    password
-  } = req.body;
-
+  const { email, password } = req.body;
 
   if (!email || !password) {
     return res.status(400).json({
@@ -105,21 +78,16 @@ exports.login = async (req, res) => {
     });
   }
 
-
   try {
-
-
     const [rows] = await pool.query(
       `SELECT 
         u.*,
         d.name AS department_name
        FROM users u
-       LEFT JOIN departments d 
-       ON u.department_id = d.id
+       LEFT JOIN departments d ON u.department_id = d.id
        WHERE u.email = ?`,
       [email]
     );
-
 
     if (!rows.length) {
       return res.status(404).json({
@@ -127,23 +95,19 @@ exports.login = async (req, res) => {
       });
     }
 
-
     const user = rows[0];
 
-
+    // 🔴 FIX 2: user.password_hash এর জায়গায় user.password ব্যবহার করা হয়েছে
     const match = await bcrypt.compare(
       password,
-      user.password_hash
+      user.password
     );
-
 
     if (!match) {
       return res.status(401).json({
         message: 'Wrong password'
       });
     }
-
-
 
     const token = jwt.sign(
       {
@@ -153,18 +117,14 @@ exports.login = async (req, res) => {
         department_name: user.department_name,
         full_name: user.full_name
       },
-      process.env.JWT_SECRET,
+      process.env.JWT_SECRET || 'your_fallback_secret',
       {
         expiresIn: '7d'
       }
     );
 
-
-
     res.json({
-
       token,
-
       user: {
         id: user.id,
         full_name: user.full_name,
@@ -174,29 +134,19 @@ exports.login = async (req, res) => {
         department_name: user.department_name,
         batch: user.batch
       }
-
     });
 
-
-
   } catch (err) {
-
     res.status(500).json({
       message: err.message
     });
-
   }
-
 };
 
-
-
-
-
+// ME / PROFILE
 exports.me = async (req, res) => {
-
   try {
-
+    // 🔴 FIX 3: profile_photo এর জায়গায় photo_url ব্যবহার করা হয়েছে
     const [rows] = await pool.query(
       `SELECT 
         u.id,
@@ -206,17 +156,13 @@ exports.me = async (req, res) => {
         u.batch,
         u.department_id,
         d.name AS department_name,
-        u.profile_photo,
+        u.photo_url,
         u.created_at
        FROM users u
-       LEFT JOIN departments d
-       ON u.department_id = d.id
+       LEFT JOIN departments d ON u.department_id = d.id
        WHERE u.id = ?`,
-      [
-        req.user.id
-      ]
+      [req.user.id]
     );
-
 
     if (!rows.length) {
       return res.status(404).json({
@@ -224,16 +170,11 @@ exports.me = async (req, res) => {
       });
     }
 
-
     res.json(rows[0]);
 
-
-  } catch(err){
-
+  } catch (err) {
     res.status(500).json({
       message: err.message
     });
-
   }
-
 };
