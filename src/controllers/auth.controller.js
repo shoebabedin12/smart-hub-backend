@@ -4,9 +4,9 @@ const jwt = require('jsonwebtoken');
 
 // REGISTER
 exports.register = async (req, res) => {
-  const { full_name, email, password, role, department_id, batch } = req.body;
+  const { full_name, email, password_hash, role, department_id, batch } = req.body;
 
-  if (!full_name || !email || !password || !department_id || !batch) {
+  if (!full_name || !email || !password_hash || !department_id || !batch) {
     return res.status(400).json({
       message: 'All fields required'
     });
@@ -24,17 +24,17 @@ exports.register = async (req, res) => {
       });
     }
 
-    const hash = await bcrypt.hash(password, 10);
+    const hash = await bcrypt.hash(password_hash, 10);
 
-    // 🔴 FIX 1: password_hash এর জায়গায় password ব্যবহার করা হয়েছে
+    // 🔴 FIX 1: password_hash এর জায়গায় password ব্যবহার করা হয়েছে
     await pool.query(
       `INSERT INTO users 
-      (full_name, email, password, role, department_id, batch)
+      (full_name, email, password_hash, role, department_id, batch)
       VALUES (?, ?, ?, ?, ?, ?)`,
       [
         full_name,
         email,
-        hash,
+        password_hash,
         role || 'student',
         department_id,
         batch
@@ -70,9 +70,9 @@ exports.register = async (req, res) => {
 
 // LOGIN
 exports.login = async (req, res) => {
-  const { email, password } = req.body;
+  const { email, password_hash } = req.body;
 
-  if (!email || !password) {
+  if (!email || !password_hash) {
     return res.status(400).json({
       message: 'Email and password required'
     });
@@ -99,8 +99,8 @@ exports.login = async (req, res) => {
 
     // 🔴 FIX 2: user.password_hash এর জায়গায় user.password ব্যবহার করা হয়েছে
     const match = await bcrypt.compare(
-      password,
-      user.password
+      password_hash,
+      user.password_hash
     );
 
     if (!match) {
@@ -146,21 +146,21 @@ exports.login = async (req, res) => {
 // ME / PROFILE
 exports.me = async (req, res) => {
   try {
-    // 🔴 FIX 3: profile_photo এর জায়গায় photo_url ব্যবহার করা হয়েছে
+   
     const [rows] = await pool.query(
       `SELECT 
-        u.id,
-        u.full_name,
-        u.email,
-        u.role,
-        u.batch,
-        u.department_id,
-        d.name AS department_name,
-        u.photo_url,
-        u.created_at
-       FROM users u
-       LEFT JOIN departments d ON u.department_id = d.id
-       WHERE u.id = ?`,
+      u.id,
+      u.full_name,
+      u.email,
+      u.role,
+      u.batch,
+      u.department_id,
+      d.name AS department_name,
+      u.profile_photo,
+      u.created_at
+      FROM users u
+      LEFT JOIN departments d ON u.department_id = d.id
+      WHERE u.id = ?`,
       [req.user.id]
     );
 
