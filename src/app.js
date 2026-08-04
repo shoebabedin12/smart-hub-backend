@@ -21,21 +21,25 @@ const app = express();
 // CORS CONFIG
 // ===============================
 
+// ===============================
+// CORS CONFIG
+// ===============================
+
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+  'https://smart-hub.shoebabedin.com',       // আপনার ফ্রন্টএন্ড/ব্যাকএন্ড সাব-ডোমেইন
+  'http://smart-hub.shoebabedin.com'
+];
+
 const corsOptions = {
   origin: function (origin, callback) {
-
-    const allowedOrigins = [
-      '*',
-      'http://localhost:3000',
-      'http://127.0.0.1:3000'
-    ];
-
-    // Allow Postman, mobile apps, server-to-server requests
+    // Postman, Mobile App, cPanel internal requests বা server-to-server রিকোয়েস্টের জন্য
     if (!origin) {
       return callback(null, true);
     }
 
-    if (allowedOrigins.includes(origin)) {
+    if (allowedOrigins.indexOf(origin) !== -1) {
       return callback(null, true);
     }
 
@@ -58,7 +62,6 @@ const corsOptions = {
     'Authorization'
   ]
 };
-
 
 app.use(cors(corsOptions));
 
