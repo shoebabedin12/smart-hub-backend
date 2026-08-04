@@ -11,6 +11,8 @@ const pool = mysql.createPool({
   connectionLimit: 10,
 });
 
+console.log("✅ Database Connected");
+
 // Automatic Migration Function
 // const createTables = async () => {
 //   try {
