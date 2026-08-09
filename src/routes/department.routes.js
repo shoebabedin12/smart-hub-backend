@@ -26,9 +26,9 @@ router.post("/add", async (req, res) => {
 });
 
 router.delete("/delete", async (req, res) => {
-  const { name } = req.body;
+  const { id } = req.body;
   try {
-    await pool.query("DELETE FROM departments WHERE name = ?", [name]);
+    await pool.query("DELETE FROM departments WHERE id = ?", [id]);
     res.json({ message: "Department removed successfully" });
   } catch (err) {
     res.status(500).json({ message: err.message });
