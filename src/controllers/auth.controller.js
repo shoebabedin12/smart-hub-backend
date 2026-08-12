@@ -3,8 +3,12 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 
 // REGISTER
+// 🔒 Public self-registration can ONLY ever create a 'student' account.
+// Any `role` field sent by the client is ignored — faculty accounts are
+// created exclusively by an admin via createFaculty below, and admin
+// accounts are never created through any API endpoint.
 exports.register = async (req, res) => {
-  const { full_name, email, password_hash, role, department_id, batch } = req.body;
+  const { full_name, email, password_hash, department_id, batch, semester } = req.body;
 
   if (!full_name || !email || !password_hash || !department_id || !batch) {
     return res.status(400).json({
@@ -26,18 +30,17 @@ exports.register = async (req, res) => {
 
     const hash = await bcrypt.hash(password_hash, 10);
 
-    // 🔴 FIX 1: password_hash এর জায়গায় password ব্যবহার করা হয়েছে
     await pool.query(
-      `INSERT INTO users 
-      (full_name, email, password_hash, role, department_id, batch)
-      VALUES (?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO users
+      (full_name, email, password_hash, role, department_id, batch, semester)
+      VALUES (?, ?, ?, 'student', ?, ?, ?)`,
       [
         full_name,
         email,
-        password_hash,
-        role || 'student',
+        hash,
         department_id,
-        batch
+        batch,
+        semester || '7th'
       ]
     );
 
@@ -49,7 +52,8 @@ exports.register = async (req, res) => {
         u.role,
         u.department_id,
         d.name AS department_name,
-        u.batch
+        u.batch,
+        u.semester
        FROM users u
        LEFT JOIN departments d ON u.department_id = d.id
        WHERE u.email = ?`,
@@ -97,7 +101,6 @@ exports.login = async (req, res) => {
 
     const user = rows[0];
 
-    // 🔴 FIX 2: user.password_hash এর জায়গায় user.password ব্যবহার করা হয়েছে
     const match = await bcrypt.compare(
       password_hash,
       user.password_hash
@@ -115,7 +118,9 @@ exports.login = async (req, res) => {
         role: user.role,
         department_id: user.department_id,
         department_name: user.department_name,
-        full_name: user.full_name
+        full_name: user.full_name,
+        batch: user.batch,
+        semester: user.semester || '7th'
       },
       process.env.JWT_SECRET || 'your_fallback_secret',
       {
@@ -132,7 +137,8 @@ exports.login = async (req, res) => {
         role: user.role,
         department_id: user.department_id,
         department_name: user.department_name,
-        batch: user.batch
+        batch: user.batch,
+        semester: user.semester || '7th'
       }
     });
 
@@ -146,7 +152,6 @@ exports.login = async (req, res) => {
 // ME / PROFILE
 exports.me = async (req, res) => {
   try {
-   
     const [rows] = await pool.query(
       `SELECT 
       u.id,
@@ -154,6 +159,7 @@ exports.me = async (req, res) => {
       u.email,
       u.role,
       u.batch,
+      u.semester,
       u.department_id,
       d.name AS department_name,
       u.profile_photo,
@@ -171,6 +177,60 @@ exports.me = async (req, res) => {
     }
 
     res.json(rows[0]);
+
+  } catch (err) {
+    res.status(500).json({
+      message: err.message
+    });
+  }
+};
+
+// CREATE FACULTY (admin-only)
+// The only way a faculty account can be created — admin sets the initial
+// password and the account is immediately usable with role 'faculty'.
+exports.createFaculty = async (req, res) => {
+  const { full_name, email, password, department_id } = req.body;
+
+  if (!full_name || !email || !password || !department_id) {
+    return res.status(400).json({
+      message: 'Full name, email, password and department are required'
+    });
+  }
+
+  try {
+    const [exists] = await pool.query(
+      'SELECT id FROM users WHERE email = ?',
+      [email]
+    );
+
+    if (exists.length > 0) {
+      return res.status(400).json({
+        message: 'Email already registered'
+      });
+    }
+
+    const hash = await bcrypt.hash(password, 10);
+
+    const [result] = await pool.query(
+      `INSERT INTO users
+      (full_name, email, password_hash, role, department_id, batch, semester)
+      VALUES (?, ?, ?, 'faculty', ?, NULL, NULL)`,
+      [full_name, email, hash, department_id]
+    );
+
+    const [rows] = await pool.query(
+      `SELECT
+      u.id, u.full_name, u.email, u.role, u.department_id, d.name AS department_name
+      FROM users u
+      LEFT JOIN departments d ON u.department_id = d.id
+      WHERE u.id = ?`,
+      [result.insertId]
+    );
+
+    res.status(201).json({
+      message: 'Faculty account created successfully',
+      user: rows[0]
+    });
 
   } catch (err) {
     res.status(500).json({

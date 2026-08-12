@@ -1,5 +1,7 @@
 const router = require("express").Router();
 const pool = require("../db/pool");
+const auth = require("../middleware/auth.middleware");
+const role = require("../middleware/role.middleware");
 
 router.get("/", async (req, res) => {
   try {
@@ -15,7 +17,7 @@ router.get("/", async (req, res) => {
   }
 });
 
-router.post("/add", async (req, res) => {
+router.post("/add", auth, role("admin"), async (req, res) => {
   const { name } = req.body;
   try {
     await pool.query("INSERT INTO departments (name) VALUES (?)", [name]);
@@ -25,7 +27,7 @@ router.post("/add", async (req, res) => {
   }
 });
 
-router.delete("/delete", async (req, res) => {
+router.delete("/delete", auth, role("admin"), async (req, res) => {
   const { id } = req.body;
   try {
     await pool.query("DELETE FROM departments WHERE id = ?", [id]);

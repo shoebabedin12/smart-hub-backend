@@ -1,19 +1,30 @@
 const router = require('express').Router();
 const pool   = require('../db/pool');
 const auth   = require('../middleware/auth.middleware');
+const role   = require('../middleware/role.middleware');
 
-router.get('/', auth, async (req, res) => {
-  const { role } = req.query;
+// Only faculty/admin may list staff (e.g. to populate a teacher dropdown).
+// Students and admins are always excluded from the result, regardless of
+// the `role` filter, so this can never be used to enumerate the student body.
+router.get('/', auth, role('faculty', 'admin'), async (req, res) => {
+  const { role: roleFilter } = req.query;
   try {
-    let query = `SELECT id, full_name, email, role, department FROM users WHERE role != 'student' AND role != 'admin'`;
+    // Join departments via department_id — the legacy `users.department`
+    // text column is always NULL and was never actually populated.
+    let query = `
+      SELECT u.id, u.full_name, u.email, u.role, u.department_id, d.name AS department_name
+      FROM users u
+      LEFT JOIN departments d ON u.department_id = d.id
+      WHERE u.role != 'student' AND u.role != 'admin'
+    `;
     const params = [];
-    if (role) { 
-      params.push(role); 
-      query = `SELECT id, full_name, email, role, department FROM users WHERE role=?`;
+    if (roleFilter) {
+      query += ' AND u.role = ?';
+      params.push(roleFilter);
     }
-    query += ' ORDER BY full_name';
-    const result = await pool.query(query, params);
-    res.json(result.rows);
+    query += ' ORDER BY u.full_name';
+    const [rows] = await pool.query(query, params);
+    res.json(rows);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

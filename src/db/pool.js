@@ -111,4 +111,69 @@ console.log("✅ Database Connected");
 // // Run migration
 // createTables();
 
+// Migration helper to ensure 'semester' column exists on tables that need
+// per-semester access control (users, class_routine, assignments).
+const ensureSemesterColumn = async (connection, table) => {
+  const [cols] = await connection.query(`SHOW COLUMNS FROM ${table} LIKE 'semester'`);
+  if (cols.length === 0) {
+    await connection.query(`ALTER TABLE ${table} ADD COLUMN semester VARCHAR(50) DEFAULT NULL`);
+    console.log(`✅ Added 'semester' column to ${table} table`);
+  }
+};
+
+// Subjects master list — keeps subject names consistent per department
+// instead of every form free-texting its own spelling.
+const ensureSubjectsTable = async (connection) => {
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS subjects (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      name VARCHAR(150) NOT NULL,
+      department_id INT NOT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (department_id) REFERENCES departments(id) ON DELETE CASCADE,
+      UNIQUE KEY unique_subject_per_department (department_id, name)
+    )
+  `);
+};
+
+// Each subject carries its own course code (e.g. "CSE-101") so routine
+// entries can derive the code from the chosen subject instead of it
+// being typed separately and risking a mismatch.
+const ensureSubjectCodeColumn = async (connection) => {
+  const [cols] = await connection.query("SHOW COLUMNS FROM subjects LIKE 'code'");
+  if (cols.length === 0) {
+    await connection.query("ALTER TABLE subjects ADD COLUMN code VARCHAR(30) DEFAULT NULL");
+    console.log("✅ Added 'code' column to subjects table");
+  }
+};
+
+// Rooms master list — physical rooms aren't tied to a single department
+// (any department can be scheduled into any room), so this is global.
+const ensureRoomsTable = async (connection) => {
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS rooms (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      room_number VARCHAR(30) NOT NULL UNIQUE,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+};
+
+const initDb = async () => {
+  try {
+    const connection = await pool.getConnection();
+    await ensureSemesterColumn(connection, 'users');
+    await ensureSemesterColumn(connection, 'class_routine');
+    await ensureSemesterColumn(connection, 'assignments');
+    await ensureSubjectsTable(connection);
+    await ensureSubjectCodeColumn(connection);
+    await ensureRoomsTable(connection);
+    connection.release();
+  } catch (err) {
+    console.warn("DB migration warning:", err.message);
+  }
+};
+
+initDb();
+
 module.exports = pool;

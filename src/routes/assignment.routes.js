@@ -28,20 +28,54 @@ router.get('/manage', auth, role('faculty', 'admin'), async (req, res) => {
 
 // স্টুডেন্টদের নিজেদের অ্যাসাইনমেন্ট লিস্ট দেখা
 router.get('/', auth, async (req, res) => {
-  const { department_id, batch } = req.query;
+  let { department_id, batch } = req.query;
+  let semester = null;
+
+  // 🔒 SEMESTER ACCESS CONTROL
+  // Students cannot pick their own department/batch/semester via query params —
+  // always derive it server-side from their own profile, and only return assignments
+  // tagged for their semester (or untagged/legacy rows, which stay visible to everyone).
+  if (req.user?.role === 'student') {
+    department_id = req.user.department_id;
+    batch = req.user.batch;
+    semester = req.user.semester;
+
+    if (!department_id || !batch || !semester) {
+      try {
+        const [uRows] = await pool.query(
+          'SELECT department_id, batch, semester FROM users WHERE id = ?',
+          [req.user.id]
+        );
+        department_id = department_id || uRows[0]?.department_id;
+        batch = batch || uRows[0]?.batch;
+        semester = semester || uRows[0]?.semester;
+      } catch {}
+    }
+  }
+
+  if (!department_id) {
+    return res.json([]);
+  }
+
   try {
-    const [rows] = await pool.query(
-      `SELECT a.*, u.full_name as teacher_name,
+    let query = `SELECT a.*, u.full_name as teacher_name,
               EXISTS(
                 SELECT 1 FROM assignment_submissions s
                 WHERE s.assignment_id = a.id AND s.student_id = ?
               ) as submitted
        FROM assignments a
        LEFT JOIN users u ON a.created_by = u.id
-       WHERE a.department_id = ? AND (a.batch = ? OR a.batch IS NULL)
-       ORDER BY a.deadline ASC`,
-      [req.user.id, department_id, batch]
-    );
+       WHERE a.department_id = ? AND (a.batch = ? OR a.batch IS NULL)`;
+    const params = [req.user.id, department_id, batch];
+
+    if (semester) {
+      query += ` AND (LOWER(a.semester) = LOWER(?) OR a.semester IS NULL OR a.semester = '' OR LOWER(a.semester) = 'all')`;
+      params.push(semester);
+    }
+
+    query += ` ORDER BY a.deadline ASC`;
+
+    const [rows] = await pool.query(query, params);
     res.json(rows);
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -50,17 +84,17 @@ router.get('/', auth, async (req, res) => {
 
 // নতুন অ্যাসাইনমেন্ট তৈরি করা
 router.post('/', auth, role('faculty', 'admin'), async (req, res) => {
-  const { department_id, batch, subject, title, description, deadline } = req.body;
+  const { department_id, batch, semester, subject, title, description, deadline } = req.body;
   try {
     const [result] = await pool.query(
-      `INSERT INTO assignments (created_by, department_id, batch, subject, title, description, deadline)
-       VALUES (?,?,?,?,?,?,?)`,
-      [req.user.id, department_id, batch, subject, title, description, deadline]
+      `INSERT INTO assignments (created_by, department_id, batch, semester, subject, title, description, deadline)
+       VALUES (?,?,?,?,?,?,?,?)`,
+      [req.user.id, department_id, batch, semester || null, subject, title, description, deadline]
     );
     res.status(201).json({
       id: result.insertId,
       created_by: req.user.id,
-      department_id, batch, subject, title, description, deadline
+      department_id, batch, semester, subject, title, description, deadline
     });
   } catch (err) {
     res.status(500).json({ message: err.message });

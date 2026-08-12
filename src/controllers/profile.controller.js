@@ -4,7 +4,7 @@ const pool = require("../db/pool");
 exports.getProfile = async (req, res) => {
   try {
     const [rows] = await pool.query(
-      `SELECT u.id, u.full_name, u.email, u.role, u.batch, u.profile_photo, 
+      `SELECT u.id, u.full_name, u.email, u.role, u.batch, u.semester, u.profile_photo, 
               u.department_id, d.name as department_name
        FROM users u
        LEFT JOIN departments d ON u.department_id = d.id
@@ -26,12 +26,11 @@ exports.getProfile = async (req, res) => {
 // UPDATE PROFILE
 exports.updateProfile = async (req, res) => {
   try {
-    const { full_name, department_id, batch } = req.body;
+    const { full_name, department_id, batch, semester } = req.body;
 
     // Cloudinary URL
     const profile_photo = req.file?.path || null;
 
-    // 🔴 department_id ফাকা স্ট্রিং ("") পাঠালে সেটাকে null করা যাতে COALESCE কাজ করতে পারে
     const deptId =
       department_id && department_id !== "undefined"
         ? Number(department_id)
@@ -42,13 +41,14 @@ exports.updateProfile = async (req, res) => {
         full_name = COALESCE(?, full_name),
         department_id = COALESCE(?, department_id),
         batch = COALESCE(?, batch),
+        semester = COALESCE(?, semester),
         profile_photo = COALESCE(?, profile_photo)
        WHERE id = ?`,
-      [full_name || null, deptId, batch || null, profile_photo, req.user.id],
+      [full_name || null, deptId, batch || null, semester || null, profile_photo, req.user.id],
     );
 
     const [rows] = await pool.query(
-      `SELECT u.id, u.full_name, u.email, u.role, u.batch, u.department_id, d.name as department_name, u.profile_photo
+      `SELECT u.id, u.full_name, u.email, u.role, u.batch, u.semester, u.department_id, d.name as department_name, u.profile_photo
        FROM users u
        LEFT JOIN departments d ON u.department_id = d.id
        WHERE u.id = ?`,

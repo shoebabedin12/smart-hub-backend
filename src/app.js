@@ -15,6 +15,8 @@ const routineRoutes = require("./routes/routine.routes");
 const assignmentRoutes = require("./routes/assignment.routes");
 const userRoutes = require("./routes/user.routes");
 const batchesRoutes = require("./routes/batches.routes");
+const subjectRoutes = require("./routes/subject.routes");
+const roomRoutes = require("./routes/room.routes");
 
 
 const app = express();
@@ -115,6 +117,10 @@ app.use("/api/users", userRoutes);
 
 app.use("/api/batches", batchesRoutes);
 
+app.use("/api/subjects", subjectRoutes);
+
+app.use("/api/rooms", roomRoutes);
+
 
 
 // =================================
@@ -124,7 +130,7 @@ app.use("/api/batches", batchesRoutes);
 app.get("/", (req, res) => {
   res.json({
     success: true,
-    message: "Smart Hub API running 🚀",
+    message: "Student Portal API running 🚀",
   });
 });
 

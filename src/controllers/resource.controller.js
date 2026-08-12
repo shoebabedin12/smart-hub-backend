@@ -10,8 +10,8 @@ exports.upload = async (req, res) => {
     title,
     subject,
     semester,
-    department,
   } = req.body;
+  let { department } = req.body;
 
   // Validate title
   if (!title) {
@@ -28,6 +28,23 @@ exports.upload = async (req, res) => {
   }
 
   try {
+    // 🔒 DEPARTMENT LOCK
+    // Faculty can only ever upload resources tagged with their own
+    // department — the client-supplied `department` is ignored for
+    // anyone who isn't an admin, and derived server-side instead.
+    if (req.user.role !== "admin") {
+      department = req.user.department_name;
+      if (!department) {
+        const [uRows] = await pool.query(
+          `SELECT d.name FROM users u
+           LEFT JOIN departments d ON u.department_id = d.id
+           WHERE u.id = ?`,
+          [req.user.id]
+        );
+        department = uRows[0]?.name || null;
+      }
+    }
+
     // ========================================
     // PUBLIC FILE PATH
     // ========================================
@@ -145,36 +162,54 @@ exports.getAll = async (req, res) => {
 
   const params = [];
 
-  // ========================================
-  // FILTER BY DEPARTMENT
-  // ========================================
-
-  if (department) {
-    query += ` AND r.department = ?`;
-    params.push(department);
+  // 🔒 DEPARTMENT & SEMESTER ACCESS CONTROL
+  // Students always see only their own department + semester (or
+  // untagged/'all' resources) — derived server-side from their profile,
+  // never from client-supplied query params, so it can't be bypassed.
+  let userDepartment = req.user?.department_name;
+  let userSemester = req.user?.semester;
+  if ((!userDepartment || !userSemester) && req.user?.id) {
+    try {
+      const [uRows] = await pool.query(
+        `SELECT d.name AS department_name, u.semester
+         FROM users u
+         LEFT JOIN departments d ON u.department_id = d.id
+         WHERE u.id = ?`,
+        [req.user.id]
+      );
+      userDepartment = userDepartment || uRows[0]?.department_name;
+      userSemester = userSemester || uRows[0]?.semester;
+    } catch {}
   }
 
-  // ========================================
-  // FILTER BY SUBJECT
-  // ========================================
+  if (req.user?.role === 'student') {
+    if (userDepartment) {
+      query += ` AND (LOWER(r.department) = LOWER(?) OR r.department IS NULL OR r.department = '' OR LOWER(r.department) = 'all')`;
+      params.push(userDepartment);
+    }
+    if (userSemester) {
+      query += ` AND (LOWER(r.semester) = LOWER(?) OR r.semester IS NULL OR r.semester = '' OR LOWER(r.semester) = 'all')`;
+      params.push(userSemester);
+    }
+  } else {
+    // FILTER BY DEPARTMENT
+    if (department) {
+      query += ` AND r.department = ?`;
+      params.push(department);
+    }
 
+    // FILTER BY SEMESTER
+    if (semester) {
+      query += ` AND LOWER(r.semester) = LOWER(?)`;
+      params.push(semester);
+    }
+  }
+
+  // FILTER BY SUBJECT
   if (subject) {
     query += ` AND r.subject LIKE ?`;
     params.push(`%${subject}%`);
   }
-
-  // ========================================
-  // FILTER BY SEMESTER
-  // ========================================
-
-  if (semester) {
-    query += ` AND r.semester = ?`;
-    params.push(semester);
-  }
-
-  // ========================================
-  // SORT
-  // ========================================
 
   query += " ORDER BY r.created_at DESC";
 
