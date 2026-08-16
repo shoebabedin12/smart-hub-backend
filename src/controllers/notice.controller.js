@@ -60,10 +60,17 @@ exports.create = async (req, res) => {
     // 🛠️ department_id যদি 'all' বা খালি হয়, তবে ডাটাবেজে NULL সেভ হবে (সবার জন্য নোটিশ)
     const deptId = (!department_id || department_id === 'all') ? null : Number(department_id);
 
+    // multipart/form-data sends every field as a string, so is_pinned="false"
+    // would otherwise be truthy — handle both boolean and string forms.
+    const pinned = is_pinned === true || is_pinned === 'true' ? 1 : 0;
+
+    const filePath = req.file ? `/uploads/notices/${req.file.filename}` : null;
+    const fileName = req.file ? req.file.originalname : null;
+
     const [result] = await pool.query(
-      `INSERT INTO notices (author_id, title, body, ai_summary, category, department_id, is_pinned)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [req.user.id, title, body, ai_summary, category, deptId, is_pinned ? 1 : 0]
+      `INSERT INTO notices (author_id, title, body, ai_summary, category, department_id, is_pinned, file_path, file_name)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [req.user.id, title, body, ai_summary, category, deptId, pinned, filePath, fileName]
     );
 
     const [newNotice] = await pool.query(

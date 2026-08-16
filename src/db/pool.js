@@ -159,6 +159,49 @@ const ensureRoomsTable = async (connection) => {
   `);
 };
 
+// Admission whitelist — admin pre-loads the emails collected at physical
+// admission time; public self-registration is only allowed for an email
+// that already appears here (see auth.controller.js register()). The extra
+// fields exist so an admin can actually tell two same-named students apart
+// while reviewing the list — they aren't enforced against the register form.
+const ensureAdmissionWhitelistTable = async (connection) => {
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS admission_whitelist (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      email VARCHAR(255) NOT NULL UNIQUE,
+      full_name VARCHAR(255) DEFAULT NULL,
+      student_id VARCHAR(50) DEFAULT NULL,
+      department_id INT DEFAULT NULL,
+      batch VARCHAR(50) DEFAULT NULL,
+      semester VARCHAR(50) DEFAULT NULL,
+      phone VARCHAR(30) DEFAULT NULL,
+      added_by INT DEFAULT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (added_by) REFERENCES users(id) ON DELETE SET NULL
+    )
+  `);
+};
+
+// Existing installs already have admission_whitelist from before these
+// columns existed — add them idempotently rather than requiring a fresh
+// table (same pattern as ensureSubjectCodeColumn below).
+const ensureAdmissionWhitelistColumns = async (connection) => {
+  const columns = [
+    ['student_id', 'VARCHAR(50) DEFAULT NULL'],
+    ['department_id', 'INT DEFAULT NULL'],
+    ['batch', 'VARCHAR(50) DEFAULT NULL'],
+    ['semester', 'VARCHAR(50) DEFAULT NULL'],
+    ['phone', 'VARCHAR(30) DEFAULT NULL'],
+  ];
+  for (const [name, ddl] of columns) {
+    const [cols] = await connection.query(`SHOW COLUMNS FROM admission_whitelist LIKE '${name}'`);
+    if (cols.length === 0) {
+      await connection.query(`ALTER TABLE admission_whitelist ADD COLUMN ${name} ${ddl}`);
+      console.log(`✅ Added '${name}' column to admission_whitelist table`);
+    }
+  }
+};
+
 const initDb = async () => {
   try {
     const connection = await pool.getConnection();
@@ -168,6 +211,8 @@ const initDb = async () => {
     await ensureSubjectsTable(connection);
     await ensureSubjectCodeColumn(connection);
     await ensureRoomsTable(connection);
+    await ensureAdmissionWhitelistTable(connection);
+    await ensureAdmissionWhitelistColumns(connection);
     connection.release();
   } catch (err) {
     console.warn("DB migration warning:", err.message);

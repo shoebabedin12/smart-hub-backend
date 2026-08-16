@@ -9,6 +9,8 @@ router.get('/', (req, res) => {
   res.json({ message: "Auth route working" });
 });
 router.post('/register',        ctrl.register);
+router.post('/verify-otp',      ctrl.verifyOtp);
+router.post('/resend-otp',      ctrl.resendOtp);
 router.post('/login',           ctrl.login);
 router.get('/me',               auth, ctrl.me);
 router.post('/create-faculty',  auth, role('admin'), ctrl.createFaculty);

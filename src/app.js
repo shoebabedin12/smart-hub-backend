@@ -17,6 +17,7 @@ const userRoutes = require("./routes/user.routes");
 const batchesRoutes = require("./routes/batches.routes");
 const subjectRoutes = require("./routes/subject.routes");
 const roomRoutes = require("./routes/room.routes");
+const admissionRoutes = require("./routes/admission.routes");
 
 
 const app = express();
@@ -120,6 +121,8 @@ app.use("/api/batches", batchesRoutes);
 app.use("/api/subjects", subjectRoutes);
 
 app.use("/api/rooms", roomRoutes);
+
+app.use("/api/admission-list", admissionRoutes);
 
 
 

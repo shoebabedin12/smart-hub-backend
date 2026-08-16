@@ -1,5 +1,6 @@
 const pool = require("../db/pool");
 const path = require("path");
+const fetch = (...args) => import("node-fetch").then(({ default: fetch }) => fetch(...args));
 
 // ========================================
 // UPLOAD RESOURCE
@@ -119,6 +120,39 @@ exports.upload = async (req, res) => {
     const resourceId = dbResult.insertId;
 
     // ========================================
+    // INDEX INTO THE AI SERVICE (FAISS)
+    // ========================================
+    //
+    // So the RAG chat can answer questions from this file's content.
+    // The AI service downloads the file over HTTP, so it needs a fully
+    // qualified URL, not the relative path we store in the DB.
+    //
+    // Indexing failure must not fail the upload itself — the resource
+    // is still valid to browse/download even if search over it doesn't
+    // work yet.
+
+    let indexed = false;
+    try {
+      const publicFileUrl = `${req.protocol}://${req.get("host")}${fileUrl}`;
+
+      const aiRes = await fetch(`${process.env.AI_SERVICE_URL}/index-file`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          file_url: publicFileUrl,
+          resource_id: resourceId,
+        }),
+      });
+
+      indexed = aiRes.ok;
+      if (!indexed) {
+        console.error("AI indexing failed:", await aiRes.text());
+      }
+    } catch (indexErr) {
+      console.error("AI indexing request error:", indexErr.message);
+    }
+
+    // ========================================
     // RESPONSE
     // ========================================
 
@@ -126,6 +160,7 @@ exports.upload = async (req, res) => {
       message: "Resource uploaded successfully",
       resourceId,
       url: fileUrl,
+      indexed,
     });
   } catch (err) {
     console.error(

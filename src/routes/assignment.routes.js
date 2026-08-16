@@ -2,6 +2,31 @@ const router = require('express').Router();
 const pool   = require('../db/pool');
 const auth   = require('../middleware/auth.middleware');
 const role   = require('../middleware/role.middleware');
+const path   = require('path');
+const fs     = require('fs');
+const multer = require('multer');
+
+// ==========================================
+// SUBMISSION FILE UPLOAD (multer)
+// ==========================================
+
+const submissionUploadDir = path.join(__dirname, '../uploads/assignments');
+if (!fs.existsSync(submissionUploadDir)) {
+  fs.mkdirSync(submissionUploadDir, { recursive: true });
+}
+
+const submissionStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, submissionUploadDir),
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    cb(null, `${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`);
+  },
+});
+
+const uploadSubmission = multer({
+  storage: submissionStorage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+});
 
 // ==========================================
 // 🛑 ১. স্ট্যাটিক রাউটগুলো সবার উপরে থাকবে
@@ -123,15 +148,27 @@ router.get('/:id/submissions', auth, role('faculty', 'admin'), async (req, res) 
   }
 });
 
-// অ্যাসাইনমেন্ট সাবমিট করা
-router.post('/:id/submit', auth, async (req, res) => {
+// অ্যাসাইনমেন্ট সাবমিট করা (ফাইল সহ)
+router.post('/:id/submit', auth, uploadSubmission.single('file'), async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ message: 'A file is required to submit the assignment' });
+  }
+
+  const filePath = `/uploads/assignments/${req.file.filename}`;
+  const fileName = req.file.originalname;
+
   try {
     await pool.query(
-      `INSERT IGNORE INTO assignment_submissions (assignment_id, student_id, note)
-       VALUES (?,?,?)`,
-      [req.params.id, req.user.id, req.body.note || null]
+      `INSERT INTO assignment_submissions (assignment_id, student_id, note, file_path, file_name)
+       VALUES (?,?,?,?,?)
+       ON DUPLICATE KEY UPDATE
+         note = VALUES(note),
+         file_path = VALUES(file_path),
+         file_name = VALUES(file_name),
+         submitted_at = CURRENT_TIMESTAMP`,
+      [req.params.id, req.user.id, req.body.note || null, filePath, fileName]
     );
-    res.json({ message: 'Marked as submitted' });
+    res.json({ message: 'Submitted successfully', file_path: filePath, file_name: fileName });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
