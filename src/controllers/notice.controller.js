@@ -86,20 +86,31 @@ exports.create = async (req, res) => {
 
 exports.update = async (req, res) => {
   const { id } = req.params;
-  const { title, body, category, department, is_pinned } = req.body;
+  const { title, body, category, department_id, is_pinned } = req.body;
+  if (!title || !body || !category) {
+    return res.status(400).json({ message: 'title, body, category required' });
+  }
   try {
-    const ai_summary = body ? await summarize(body) : undefined;
-    
-    await pool.query(
-      `UPDATE notices SET title=?, body=?, category=?, department=?, is_pinned=?,
-       ai_summary=COALESCE(?, ai_summary) WHERE id=? AND author_id=?`,
-      [title, body, category, department, is_pinned ? 1 : 0, ai_summary, id, req.user.id]
-    );
+    const ai_summary = await summarize(body);
+    const deptId = (!department_id || department_id === 'all') ? null : Number(department_id);
+    const pinned = is_pinned === true || is_pinned === 'true' ? 1 : 0;
 
-    const [updatedNotice] = await pool.query('SELECT n.*, u.full_name as author_name FROM notices n JOIN users u ON n.author_id = u.id WHERE n.id = ?', [id]);
-    if (!updatedNotice.length) return res.status(404).json({ message: 'Notice not found' });
-    
-    res.json(updatedNotice);
+    const [result] = await pool.query(
+      `UPDATE notices SET title=?, body=?, category=?, department_id=?, is_pinned=?,
+       ai_summary=COALESCE(?, ai_summary) WHERE id=? AND author_id=?`,
+      [title, body, category, deptId, pinned, ai_summary, id, req.user.id]
+    );
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: 'Notice not found or not authorized' });
+    }
+
+    const [updatedNotice] = await pool.query(
+      `SELECT n.*, u.full_name as author_name, d.name as department_name
+       FROM notices n JOIN users u ON n.author_id = u.id
+       LEFT JOIN departments d ON n.department_id = d.id WHERE n.id = ?`,
+      [id]
+    );
+    res.json(updatedNotice[0]);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

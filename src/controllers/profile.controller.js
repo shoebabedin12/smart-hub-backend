@@ -27,14 +27,21 @@ exports.getProfile = async (req, res) => {
 exports.updateProfile = async (req, res) => {
   try {
     const { full_name, department_id, batch, semester } = req.body;
+    const isStudent = req.user.role === "student";
 
     // Cloudinary URL
     const profile_photo = req.file?.path || null;
 
+    // Students can't change department/batch/semester directly here — those
+    // go through the profile-change-request + admin-approval flow instead
+    // (see profileRequest.controller.js). Faculty/admin keep editing them
+    // directly as before.
     const deptId =
-      department_id && department_id !== "undefined"
+      !isStudent && department_id && department_id !== "undefined"
         ? Number(department_id)
         : null;
+    const batchVal = !isStudent ? batch || null : null;
+    const semesterVal = !isStudent ? semester || null : null;
 
     await pool.query(
       `UPDATE users SET
@@ -44,7 +51,7 @@ exports.updateProfile = async (req, res) => {
         semester = COALESCE(?, semester),
         profile_photo = COALESCE(?, profile_photo)
        WHERE id = ?`,
-      [full_name || null, deptId, batch || null, semester || null, profile_photo, req.user.id],
+      [full_name || null, deptId, batchVal, semesterVal, profile_photo, req.user.id],
     );
 
     const [rows] = await pool.query(

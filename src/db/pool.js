@@ -202,6 +202,28 @@ const ensureAdmissionWhitelistColumns = async (connection) => {
   }
 };
 
+// Students can't edit department/batch/semester directly on their profile —
+// they submit a request here instead, which an admin must approve before
+// it's copied onto the `users` row (see profileRequest.controller.js).
+const ensureProfileChangeRequestsTable = async (connection) => {
+  await connection.query(`
+    CREATE TABLE IF NOT EXISTS profile_change_requests (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      user_id INT NOT NULL,
+      department_id INT DEFAULT NULL,
+      batch VARCHAR(50) DEFAULT NULL,
+      semester VARCHAR(50) DEFAULT NULL,
+      status VARCHAR(20) NOT NULL DEFAULT 'pending',
+      review_note VARCHAR(255) DEFAULT NULL,
+      reviewed_by INT DEFAULT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      reviewed_at TIMESTAMP NULL DEFAULT NULL,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL
+    )
+  `);
+};
+
 const initDb = async () => {
   try {
     const connection = await pool.getConnection();
@@ -213,6 +235,7 @@ const initDb = async () => {
     await ensureRoomsTable(connection);
     await ensureAdmissionWhitelistTable(connection);
     await ensureAdmissionWhitelistColumns(connection);
+    await ensureProfileChangeRequestsTable(connection);
     connection.release();
   } catch (err) {
     console.warn("DB migration warning:", err.message);
